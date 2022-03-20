@@ -52,16 +52,17 @@ async function main() {
                 throw "Email is already taken. Please try again.";
             }
             if (!user.checkUserPasswordRegex(password)) {
-                throw "Password is not complex enough. Please try again with a different password.";
+                throw "Password is not complex enough. It needs to be 6 characters min with 1 letter and 1 number.";
             }
             if (!user.checkUserNameRegex(name)) {
                 throw "Name is not valid. Please try again.";
             }
-            if (!(await user.checkUserCountryValid(country))) {
-                throw "Your country is not in the list of allowed regions.";
-            }
             if (!user.checkUserDateOfBirthValid(dateOfBirth)) {
                 throw "Your age must be above 21 to trade on this exchange.";
+            }
+            if (!(await user.checkUserCountryValid(country))) {
+                console.log(country);
+                throw "Your country is not in the list of allowed regions.";
             }
 
             //Insert document after validation
@@ -72,7 +73,9 @@ async function main() {
                     password: password,
                     name: name,
                     country: country,
-                    dateOfBirth: new Date(dateOfBirth),
+                    dateOfBirth: new Date(dateOfBirth).getTime(),
+                    timestamp: new Date().getTime(),
+                    USD: 1000,
                 });
             res.status(200);
             res.json({
@@ -101,7 +104,6 @@ async function main() {
     // });
 
     app.post("/country", async function (req, res) {
-        console.log("Add country in progress");
         let countryInput = req.body.country;
 
         try {
@@ -127,7 +129,6 @@ async function main() {
         let countryInput = req.body.country;
 
         try {
-            console.log(countryInput);
             await getDB().collection(COUNTRY).deleteOne({ name: countryInput });
 
             res.status(200);
@@ -144,7 +145,7 @@ async function main() {
 
     //Return a list of countries in database, {countryArray:[country1, country2]}
     app.get("/country", async function (req, res) {
-        let countryList = await getDB().collection(COUNTRY).find().project({ _id: 0 }).toArray();
+        let countryList = await getDB().collection(COUNTRY).find().sort({ name: 1 }).project({ _id: 0 }).toArray();
         let countryArray = [];
         for (let item of countryList) {
             countryArray.push(item.name);

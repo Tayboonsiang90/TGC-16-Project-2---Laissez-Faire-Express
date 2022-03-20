@@ -28,7 +28,7 @@ async function checkUserEmailRepeat(email) {
 //This function checks if anpassword is keyed in valid REGEX (minimum 6 character, at least one letter and one number)
 //Return true if it is a valid password, return false if it is an invalid password
 function checkUserPasswordRegex(password) {
-    isValid = password.match(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/);
+    isValid = password.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#@$!%*?&-])[A-Za-z\d@#$!%*?&-]{6,}$/);
     return isValid ? true : false;
 }
 //This function checks if a name is keyed in valid REGEX (No special characters and numbers, only 1 space between words, no starting or trailing space)
@@ -40,7 +40,7 @@ function checkUserNameRegex(name) {
 //This function takes in a submitted country and check if its valid
 //Returns true if valid, false if not
 async function checkUserCountryValid(country) {
-    let document = await getDB().collection("country").findOne({ country });
+    let document = await getDB().collection("country").findOne({ name: country });
     return document ? true : false;
 }
 //This function takes in a submitted brithday and check if underaged
