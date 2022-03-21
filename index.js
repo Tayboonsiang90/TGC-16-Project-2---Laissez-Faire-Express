@@ -7,7 +7,7 @@ app.use(express.json());
 app.use(cors());
 
 //Useful DB Tools
-const { ObjectId } = require("mongodb").ObjectId;
+const { ObjectId } = require("mongodb");
 const { getDB, connect } = require("./MongoUtil.js");
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -89,6 +89,7 @@ async function main() {
         }
     });
 
+    //initial seeding of countries
     // app.post("/country_initial", async function (req, res) {
     //     console.log("Add country in progress");
     //     let countryInput = req.body.country;
@@ -103,6 +104,7 @@ async function main() {
     //     });
     // });
 
+    //retrieves all allowed countries
     app.post("/country", async function (req, res) {
         let countryInput = req.body.country;
 
@@ -123,7 +125,7 @@ async function main() {
             });
         }
     });
-
+    //blacklist a country from the database
     app.delete("/country", async function (req, res) {
         console.log("Delete country in progress");
         let countryInput = req.body.country;
@@ -153,6 +155,125 @@ async function main() {
 
         res.status(200);
         res.json({ countryArray });
+    });
+
+    //retrieves all deposit transactions for the id of the user supplied
+    app.get("/deposit_transactions/:id", async function (req, res) {
+        try {
+            let depositsArray = await getDB()
+                .collection(DEPOSIT_TRANSACTIONS)
+                .find({
+                    _id: ObjectId(req.params.id),
+                })
+                .sort({
+                    timestamp: 1,
+                })
+                .toArray();
+
+            res.status(200);
+            res.json({ deposits: depositsArray });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: "The user id supplied in the URL is invalid",
+            });
+        }
+    });
+
+    //retrieves all withdrawal transactions for the id of the user supplied
+    app.get("/withdrawal_transactions/:id", async function (req, res) {
+        try {
+            let withdrawalsArray = await getDB()
+                .collection(WITHDRAWAL_TRANSACTIONS)
+                .find({
+                    _id: ObjectId(req.params.id),
+                })
+                .sort({
+                    timestamp: 1,
+                })
+                .toArray();
+
+            res.status(200);
+            res.json({ withdrawals: withdrawalsArray });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: "The user id supplied in the URL is invalid",
+            });
+        }
+    });
+
+    //Create a new prediction market in database
+    //Recieves <if it is a political position> {position, country, description, politicians(array), timestampExpiry}
+    app.post("/open_markets", async function (req, res) {
+        let { position, country, description, politicians, timestampExpiry } = req.body;
+        //Validation
+
+        //Massaging the input
+        let politiciansArray = [];
+        for (let item of politicians) {
+            let objectEntry = {};
+            objectEntry.politician = item;
+            objectEntry.yes = 2000;
+            objectEntry.no = 2000;
+            objectEntry.volume = 0;
+            objectEntry.invariantK = objectEntry.yes * objectEntry.no;
+            politiciansArray.push(objectEntry);
+        }
+
+        //Insert document after validation
+        await getDB()
+            .collection(OPEN_PREDICTION_MARKETS)
+            .insertOne({
+                position: position,
+                country: country,
+                description: description,
+                politicians: politiciansArray,
+                timestampCreated: new Date().getTime(),
+                timestampExpiry: new Date(timestampExpiry).getTime(),
+            });
+
+        res.status(200);
+        res.json({
+            message: "Open Market successfully created.",
+        });
+    });
+
+    //Retrieves all open markets in database
+    app.get("/open_markets", async function (req, res) {
+        let openMarketsArray = await getDB()
+            .collection(OPEN_PREDICTION_MARKETS)
+            .find()
+            .sort({
+                timestampCreated: 1,
+            })
+            .toArray();
+
+        res.status(200);
+        res.json({ openMarkets: openMarketsArray });
+    });
+
+    //retrieves a particular market only
+    app.get("/open_markets/:id", async function (req, res) {
+        try {
+            let openMarketsArray = await getDB()
+                .collection(OPEN_PREDICTION_MARKETS)
+                .find({
+                    _id: ObjectId(req.params.id),
+                })
+                .sort({
+                    timestampCreated: 1,
+                })
+                .toArray();
+
+            res.status(200);
+            res.json({ openMarkets: openMarketsArray });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: "The market id supplied in the URL is invalid",
+            });
+        }
     });
 
     // app.post("/free_food_sighting", async function (req, res) {
