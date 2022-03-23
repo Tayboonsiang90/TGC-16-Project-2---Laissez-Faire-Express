@@ -52,7 +52,7 @@ async function main() {
                 throw "Email is already taken. Please try again.";
             }
             if (!user.checkUserPasswordRegex(password)) {
-                throw "Password is not complex enough. It needs to be 6 characters min with 1 letter and 1 number.";
+                throw "Password is not complex enough. It needs to be 6 characters min with at least 1 letter, 1 number and 1 special character";
             }
             if (!user.checkUserNameRegex(name)) {
                 throw "Name is not valid. Please try again.";
@@ -88,6 +88,45 @@ async function main() {
             });
         }
     });
+
+    //Validate email and username for login purposes
+    //returns user details
+    app.get("/login", async function (req, res) {
+        try {
+            userDetails = await getDB().collection(USER).findOne({
+                email: req.query.email,
+                password: req.query.password,
+            });
+
+            if (!userDetails) {
+                throw "Login is unsucessful. Please try again.";
+            }
+
+            res.status(200);
+            res.json({
+                message: userDetails,
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+
+    // Get user details with user id
+    // app.get("/login/:id", async function (req, res) {
+    //     userDetails = await getDB()
+    //         .collection(USER)
+    //         .findOne({
+    //             _id: ObjectId(req.params.id),
+    //         });
+
+    //     res.status(200);
+    //     res.json({
+    //         message: userDetails,
+    //     });
+    // });
 
     //initial seeding of countries
     // app.post("/country_initial", async function (req, res) {

@@ -25,7 +25,7 @@ async function checkUserEmailRepeat(email) {
     let user = await getDB().collection("user").findOne({ email });
     return user ? false : true;
 }
-//This function checks if anpassword is keyed in valid REGEX (minimum 6 character, at least one letter and one number)
+//This function checks if anpassword is keyed in valid REGEX (minimum 6 character, at least one letter and one number and special character)
 //Return true if it is a valid password, return false if it is an invalid password
 function checkUserPasswordRegex(password) {
     isValid = password.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#@$!%*?&-])[A-Za-z\d@#$!%*?&-]{6,}$/);
