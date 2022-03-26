@@ -183,7 +183,6 @@ async function main() {
             });
         }
     });
-
     //Return a list of countries in database, {countryArray:[country1, country2]}
     app.get("/country", async function (req, res) {
         let countryList = await getDB().collection(COUNTRY).find().sort({ name: 1 }).project({ _id: 0 }).toArray();
