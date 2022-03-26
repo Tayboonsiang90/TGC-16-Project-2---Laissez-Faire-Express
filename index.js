@@ -16,8 +16,7 @@ const USER = "user";
 const COUNTRY = "country";
 const BALANCES = "balances";
 const ORDER_HISTORY = "orderHistory";
-const DEPOSIT_TRANSACTIONS = "depositTransactions";
-const WITHDRAWAL_TRANSACTIONS = "withdrawalTransactions";
+const TRANSACTIONS = "transactions";
 const OPEN_PREDICTION_MARKETS = "openPredictionMarkets";
 const RESOLVING_PREDICTION_MARKETS = "resolvingPredictionMarkets";
 const CLOSED_PREDICTION_MARKETS = "closedPredictionMarkets";
@@ -26,6 +25,8 @@ const STAFF = "staff";
 //helper functions
 const user = require("./user.js");
 const country = require("./country.js");
+const transactions = require("./transactions.js");
+const { type } = require("express/lib/response");
 
 // Routes
 async function main() {
@@ -41,9 +42,8 @@ async function main() {
     //Input: Email Password Name Country Date of Birth
     //Processing: Validates email, password, name, country, date of birth
     app.post("/signup", async function (req, res) {
-        console.log("Signup in progress");
-        //Backend Validation
         let { email, password, name, country, dateOfBirth } = req.body;
+        //Backend Validation
         try {
             if (!user.checkUserEmailRegex(email)) {
                 throw "Email is not valid. Please try again.";
@@ -76,6 +76,8 @@ async function main() {
                     dateOfBirth: new Date(dateOfBirth).getTime(),
                     timestamp: new Date().getTime(),
                     USD: 1000,
+                    totalDeposited: 1000,
+                    totalWithdrew: 0,
                 });
             res.status(200);
             res.json({
@@ -85,6 +87,118 @@ async function main() {
             res.status(500);
             res.json({
                 message: e,
+            });
+        }
+    });
+
+    app.post("/deposit", async function (req, res) {
+        try {
+            let _id = req.body._id;
+            let quantity = Number(req.body.quantity);
+            //Backend Validation
+            if (!transactions.checkNumberRegex(quantity)) {
+                throw "The quantity supplied is an invalid value.";
+            }
+            //Modify user USD
+            await getDB()
+                .collection(USER)
+                .updateOne(
+                    {
+                        _id: ObjectId(_id),
+                    },
+                    {
+                        $inc: { USD: quantity, totalDeposited: quantity },
+                    }
+                );
+            //Insert transaction document
+            await getDB()
+                .collection(TRANSACTIONS)
+                .insertOne({
+                    user_id: ObjectId(_id),
+                    quantity: quantity,
+                    type: "DEPOSIT",
+                    timestamp: new Date().getTime(),
+                });
+            res.status(200);
+            res.json({
+                message: "Deposit success.",
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+
+    app.post("/withdraw", async function (req, res) {
+        try {
+            let _id = req.body._id;
+            let quantity = Number(req.body.quantity);
+            //retrieve user data
+            let user = await getDB()
+                .collection(USER)
+                .findOne({
+                    _id: ObjectId(_id),
+                });
+            //Backend Validation
+            if (!transactions.checkNumberRegex(quantity)) {
+                throw "The quantity supplied is an invalid value.";
+            }
+            if (quantity > user.USD) {
+                throw "You do not have enough USD to withdraw.";
+            }
+            //Modify user USD
+            await getDB()
+                .collection(USER)
+                .updateOne(
+                    {
+                        _id: ObjectId(_id),
+                    },
+                    {
+                        $inc: { USD: -quantity, totalWithdrew: quantity },
+                    }
+                );
+            //Insert transaction document
+            await getDB()
+                .collection(TRANSACTIONS)
+                .insertOne({
+                    user_id: ObjectId(_id),
+                    quantity: quantity,
+                    type: "WITHDRAWAL",
+                    timestamp: new Date().getTime(),
+                });
+            res.status(200);
+            res.json({
+                message: "Withdrawal success.",
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+
+    //retrieves all transactions for the id of the user supplied
+    app.get("/transactions/:id", async function (req, res) {
+        try {
+            let transactionsArray = await getDB()
+                .collection(TRANSACTIONS)
+                .find({
+                    user_id: ObjectId(req.params.id),
+                })
+                .sort({
+                    timestamp: -1,
+                })
+                .toArray();
+
+            res.status(200);
+            res.json({ transactions: transactionsArray });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: "The user id supplied in the URL is invalid",
             });
         }
     });
@@ -114,19 +228,20 @@ async function main() {
         }
     });
 
-    // Get user details with user id
-    // app.get("/login/:id", async function (req, res) {
-    //     userDetails = await getDB()
-    //         .collection(USER)
-    //         .findOne({
-    //             _id: ObjectId(req.params.id),
-    //         });
+    //Get user details with user id
+    app.get("/login/:id", async function (req, res) {
+        console.log("lol");
+        userDetails = await getDB()
+            .collection(USER)
+            .findOne({
+                _id: ObjectId(req.params.id),
+            });
 
-    //     res.status(200);
-    //     res.json({
-    //         message: userDetails,
-    //     });
-    // });
+        res.status(200);
+        res.json({
+            message: userDetails,
+        });
+    });
 
     //initial seeding of countries
     // app.post("/country_initial", async function (req, res) {
@@ -193,52 +308,6 @@ async function main() {
 
         res.status(200);
         res.json({ countryArray });
-    });
-
-    //retrieves all deposit transactions for the id of the user supplied
-    app.get("/deposit_transactions/:id", async function (req, res) {
-        try {
-            let depositsArray = await getDB()
-                .collection(DEPOSIT_TRANSACTIONS)
-                .find({
-                    _id: ObjectId(req.params.id),
-                })
-                .sort({
-                    timestamp: 1,
-                })
-                .toArray();
-
-            res.status(200);
-            res.json({ deposits: depositsArray });
-        } catch (e) {
-            res.status(500);
-            res.json({
-                message: "The user id supplied in the URL is invalid",
-            });
-        }
-    });
-
-    //retrieves all withdrawal transactions for the id of the user supplied
-    app.get("/withdrawal_transactions/:id", async function (req, res) {
-        try {
-            let withdrawalsArray = await getDB()
-                .collection(WITHDRAWAL_TRANSACTIONS)
-                .find({
-                    _id: ObjectId(req.params.id),
-                })
-                .sort({
-                    timestamp: 1,
-                })
-                .toArray();
-
-            res.status(200);
-            res.json({ withdrawals: withdrawalsArray });
-        } catch (e) {
-            res.status(500);
-            res.json({
-                message: "The user id supplied in the URL is invalid",
-            });
-        }
     });
 
     //Create a new prediction market in database
@@ -313,113 +382,12 @@ async function main() {
             });
         }
     });
-
-    // app.post("/free_food_sighting", async function (req, res) {
-    //     try {
-    //         let description = req.body.description;
-    //         let food = req.body.food.split(",");
-    //         let datetime = new Date(req.body.datetime);
-
-    //         const db = getDB();
-    //         // db.collection('food_sightings').insertOne({
-    //         //     'description':description,
-    //         //     'food':food,
-    //         //     'date':datetime
-    //         // })
-
-    //         await db.collection(COLLECTION_NAME).insertOne({
-    //             description,
-    //             food,
-    //             datetime,
-    //         });
-    //         res.status(200);
-    //         res.json({
-    //             message: "The record has been added successfully",
-    //         });
-    //     } catch (e) {
-    //         res.status(500);
-    //         res.json({
-    //             message: "Internal server error. Please contact administrator",
-    //         });
-    //         console.log(e);
-    //     }
-    // });
-
-    // app.get("/free_food_sighting", async function (req, res) {
-    //     // create citeria object (assumption: the user wants everything)
-    //     let criteria = {};
-
-    //     if (req.query.description) {
-    //         criteria["description"] = {
-    //             $regex: req.query.description,
-    //             $options: "i",
-    //         };
-    //     }
-
-    //     if (req.query.food) {
-    //         criteria["food"] = {
-    //             $in: [req.query.food],
-    //         };
-    //     }
-
-    //     const db = getDB();
-    //     let foodSightings = await db.collection(COLLECTION_NAME).find(criteria).toArray();
-    //     res.json({
-    //         food_sightings: foodSightings,
-    //     });
-    // });
-
-    // app.put("/free_food_sighting/:id", async function (req, res) {
-    //     let { description, food, datetime } = req.body;
-    //     /*
-    //         let description = req.body.description;
-    //         let food = req.body.food;
-    //         let datetime = req.body.datetime
-    //     */
-    //     food = food.split(",");
-
-    //     // remove all whitespaces from the front and back
-    //     food = food.map(function (each_food_item) {
-    //         return each_food_item.trim();
-    //     });
-    //     datetime = new Date(datetime);
-    //     let results = await getDB()
-    //         .collection(COLLECTION_NAME)
-    //         .updateOne(
-    //             {
-    //                 _id: ObjectId(req.params.id),
-    //             },
-    //             {
-    //                 $set: {
-    //                     description: description,
-    //                     food: food,
-    //                     datetime: datetime,
-    //                 },
-    //             }
-    //         );
-    //     res.status(200);
-    //     res.json({
-    //         message: "Food sighting has been updated",
-    //     });
-    // });
-
-    // app.delete("/free_food_sighting/:id", async function (req, res) {
-    //     await getDB()
-    //         .collection(COLLECTION_NAME)
-    //         .deleteOne({
-    //             _id: ObjectId(req.params.id),
-    //         });
-    //     res.status(200);
-    //     res.json({
-    //         message: "The document has been deleted",
-    //     });
-    // });
 }
 
 main();
 
-//Use Home VSC http://127.0.0.1:8888/welcome
+// Use Home VSC http://127.0.0.1:8888/welcome
 // Listen (must be the last)
-app.listen(process.env.PORT, function () {
+app.listen(process.env.PORT || 3000, function () {
     console.log("Server has started");
 });
