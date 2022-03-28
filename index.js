@@ -26,7 +26,7 @@ const STAFF = "staff";
 const user = require("./user.js");
 const country = require("./country.js");
 const transactions = require("./transactions.js");
-const { type } = require("express/lib/response");
+const trade = require("./trade.js");
 
 // Routes
 async function main() {
@@ -61,7 +61,6 @@ async function main() {
                 throw "Your age must be above 21 to trade on this exchange.";
             }
             if (!(await user.checkUserCountryValid(country))) {
-                console.log(country);
                 throw "Your country is not in the list of allowed regions.";
             }
 
@@ -230,7 +229,6 @@ async function main() {
 
     //Get user details with user id
     app.get("/login/:id", async function (req, res) {
-        console.log("lol");
         userDetails = await getDB()
             .collection(USER)
             .findOne({
@@ -281,7 +279,6 @@ async function main() {
     });
     //blacklist a country from the database
     app.delete("/country", async function (req, res) {
-        console.log("Delete country in progress");
         let countryInput = req.body.country;
 
         try {
@@ -383,9 +380,110 @@ async function main() {
         }
     });
 
-    //Market Transaction
-    
-    
+    //retrieves a user's balance for the market
+    app.get("/balances/:market_id/:user_id", async function (req, res) {
+        try {
+            let returnArray = await getDB()
+                .collection(BALANCES)
+                .find({
+                    market_id: ObjectId(req.params.market_id),
+                    user_id: ObjectId(req.params.user_id),
+                })
+                .toArray();
+            if (returnArray.length == 0) {
+                returnArray = [{ yes: 0, no: 0 }];
+            }
+            console.log({ yes: returnArray[0].yes || 0, no: returnArray[0].no || 0 });
+
+            res.status(200);
+            res.json({ balances: { yes: returnArray[0].yes || 0, no: returnArray[0].no || 0 } });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+
+    //Buy Sell Market Transaction
+    app.put("/trade/:market_id/:user_id", async function (req, res) {
+        try {
+            //destructuring
+            let { buyOrSell, yesOrNo, amount } = req.body;
+            // Necessary validation
+            // Check amount if not positive
+            if (amount <= 0) throw "The amount supplied is invalid (Negative or Zero). Please re-try.";
+            if (buyOrSell === "BUY") {
+                //Check if the user's USD is >= $ to be spent
+                let userDetails = await getDB()
+                    .collection(USER)
+                    .find(
+                        {
+                            _id: ObjectId(req.params.user_id),
+                        },
+                        { projection: { _id: 0, USD: 1 } }
+                    )
+                    .toArray();
+                if (userDetails[0].USD < amount) throw "You do not have enough USD to buy.";
+                //Perform the buy transaction
+                if (yesOrNo === "YES") {
+                    trade.tradeBuyYes(req.params.market_id, req.params.user_id, amount);
+                } else if (yesOrNo === "NO") {
+                    trade.tradeBuyNo(req.params.market_id, req.params.user_id, amount);
+                } else {
+                    throw "YES or NO token wasn't specified.";
+                }
+            } else if (buyOrSell === "SELL") {
+                //Check if user's token is >= tokens to be spent
+                let options = yesOrNo === "YES" ? { projection: { yes: 1 } } : { projection: { no: 1 } };
+                options.projection._id = 0;
+                let userTokenBalance = await getDB()
+                    .collection(BALANCES)
+                    .find(
+                        {
+                            market_id: ObjectId(req.params.market_id),
+                            user_id: ObjectId(req.params.user_id),
+                        },
+                        options
+                    )
+                    .toArray();
+                if ((userTokenBalance[0][yesOrNo === "YES" ? "yes" : "no"] || 0) < amount) {
+                    throw "You do not have enough tokens to sell.";
+                }
+                //Perform the sell transaction
+                if (yesOrNo === "YES") {
+                    trade.tradeSellYes(req.params.market_id, req.params.user_id, amount);
+                } else if (yesOrNo === "NO") {
+                    trade.tradeSellNo(req.params.market_id, req.params.user_id, amount);
+                } else {
+                    throw "YES or NO token wasn't specified.";
+                }
+            } else {
+                throw "This isn't a buy nor sell order.";
+            }
+            res.status(200);
+            res.json({
+                message: "Your order is a success!",
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+
+    app.put("add_liquidity/:market_id/:user_id", async function (req, res) {
+        try {
+            res.status(200);
+            res.json({ balances: returnArray });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
 }
 
 main();
