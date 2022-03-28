@@ -151,7 +151,7 @@ async function tradeSellYes(market_id, user_id, amount) {
     let yesTokens = marketDetails[0].politicians[0].yes;
     let noTokens = marketDetails[0].politicians[0].no;
     let invariantK = marketDetails[0].politicians[0].invariantK;
-    let amountInDollar = -(amount - yesTokens - noTokens + Math.sqrt((yesTokens + noTokens - amount) ** 2 + 4 * amount * noTokens)) / 2;
+    let amountInDollar = (amount - yesTokens - noTokens + Math.sqrt((yesTokens + noTokens - amount) ** 2 + 4 * amount * yesTokens)) / 2;
     //Update x, y and volume
     await getDB()
         .collection("openPredictionMarkets")
@@ -162,8 +162,8 @@ async function tradeSellYes(market_id, user_id, amount) {
                 },
             },
             {
-                $inc: { "politicians.$.no": amountInDollar, "politicians.$.volume": -amountInDollar },
-                $set: { "politicians.$.yes": invariantK / (noTokens + amountInDollar) },
+                $inc: { "politicians.$.yes": amountInDollar, "politicians.$.volume": amountInDollar },
+                $set: { "politicians.$.no": invariantK / (yesTokens + amountInDollar) },
             }
         );
     //update USD balance of user
@@ -175,7 +175,7 @@ async function tradeSellYes(market_id, user_id, amount) {
             },
             {
                 $inc: {
-                    USD: -amountInDollar,
+                    USD: amount - amountInDollar,
                 },
             }
         );
@@ -203,7 +203,7 @@ async function tradeSellYes(market_id, user_id, amount) {
             buyOrSell: "SELL",
             yesOrNo: "YES",
             quantity: amount,
-            quantityInUSD: -amountInDollar,
+            quantityInUSD: amount - amountInDollar,
             timestamp: new Date().getTime(),
         });
 }
@@ -217,7 +217,7 @@ async function tradeSellNo(market_id, user_id, amount) {
     let yesTokens = marketDetails[0].politicians[0].yes;
     let noTokens = marketDetails[0].politicians[0].no;
     let invariantK = marketDetails[0].politicians[0].invariantK;
-    let amountInDollar = -(amount - yesTokens - noTokens + Math.sqrt((yesTokens + noTokens - amount) ** 2 + 4 * amount * yesTokens)) / 2;
+    let amountInDollar = (amount - yesTokens - noTokens + Math.sqrt((yesTokens + noTokens - amount) ** 2 + 4 * amount * noTokens)) / 2;
     //Update x, y and volume
     await getDB()
         .collection("openPredictionMarkets")
@@ -228,8 +228,8 @@ async function tradeSellNo(market_id, user_id, amount) {
                 },
             },
             {
-                $inc: { "politicians.$.yes": amountInDollar, "politicians.$.volume": -amountInDollar },
-                $set: { "politicians.$.no": invariantK / (yesTokens + amountInDollar) },
+                $inc: { "politicians.$.no": amountInDollar, "politicians.$.volume": amountInDollar },
+                $set: { "politicians.$.yes": invariantK / (noTokens + amountInDollar) },
             }
         );
     //update USD balance of user
@@ -241,7 +241,7 @@ async function tradeSellNo(market_id, user_id, amount) {
             },
             {
                 $inc: {
-                    USD: -amountInDollar,
+                    USD: amount - amountInDollar,
                 },
             }
         );
@@ -269,7 +269,7 @@ async function tradeSellNo(market_id, user_id, amount) {
             buyOrSell: "SELL",
             yesOrNo: "NO",
             quantity: amount,
-            quantityInUSD: -amountInDollar,
+            quantityInUSD: amount - amountInDollar,
             timestamp: new Date().getTime(),
         });
 }

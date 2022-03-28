@@ -393,7 +393,6 @@ async function main() {
             if (returnArray.length == 0) {
                 returnArray = [{ yes: 0, no: 0 }];
             }
-            console.log({ yes: returnArray[0].yes || 0, no: returnArray[0].no || 0 });
 
             res.status(200);
             res.json({ balances: { yes: returnArray[0].yes || 0, no: returnArray[0].no || 0 } });
