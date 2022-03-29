@@ -529,39 +529,28 @@ async function main() {
         try {
             //destructuring
             let { addOrRemove, amount } = req.body;
-            console.log("hello");
-            if (addOrRemove === "ADD") {
-                console.log("hi");
-                //Logic - First pull out the ratio in the pool
-                let openMarketsArray = await getDB()
-                    .collection(OPEN_PREDICTION_MARKETS)
-                    .find({
+            //Logic - First pull out the ratio in the pool
+            let openMarketsArray = await getDB()
+                .collection(OPEN_PREDICTION_MARKETS)
+                .find(
+                    {
                         politicians: {
                             $elemMatch: { market_id: ObjectId(req.params.market_id) },
                         },
-                    })
-                    .project({ "politicians.$.yes": 1, "politicians.$.no": 1 })
-                    .toArray();
-                console.log(openMarketsArray);
-                // //Logic - Secondly pull out user YES NO balance
-                // let userTokenBalance = await getDB()
-                //     .collection(BALANCES)
-                //     .find(
-                //         {
-                //             market_id: ObjectId(req.params.market_id),
-                //             user_id: ObjectId(req.params.user_id),
-                //         },
-                //         { projection: { _id: 0, yes: 1, no: 1 } }
-                //     )
-                //     .toArray();
-                // //Logic - Thirdly, check if these balances are enough to satisfy
-                // if (Math.min(userTokenBalance[0].yes, userTokenBalance[0].no) < amount) {
-                //     throw "You do not have enough tokens to redeem.";
-                // }
-                // //Proceed with adding liquidity
-                // trade.addLiquidity(req.params.market_id, req.params.user_id, amount);
-            } else if (addOrRemove === "REMOVE") {
-                //Check if YES NO balance is correct
+                    },
+                    {
+                        projection: { _id: 0, "politicians.$": 1 },
+                    }
+                )
+                .toArray();
+
+            if (addOrRemove === "ADD") {
+                //the amount will refer to the number of yes tokens
+                let ratio = openMarketsArray[0].politicians[0].no / openMarketsArray[0].politicians[0].yes;
+                //the added amount will be amount, amount * ratio
+                let liquidityShares = (amount / openMarketsArray[0].politicians[0].yes) * openMarketsArray[0].politicians[0].liquidityShares;
+
+                //Logic - Secondly pull out user YES NO balance
                 let userTokenBalance = await getDB()
                     .collection(BALANCES)
                     .find(
@@ -572,11 +561,30 @@ async function main() {
                         { projection: { _id: 0, yes: 1, no: 1 } }
                     )
                     .toArray();
-                if (Math.min(userTokenBalance[0].yes, userTokenBalance[0].no) < amount) {
-                    throw "You do not have enough tokens to redeem.";
+
+                //Logic - Thirdly, check if these balances are enough to satisfy
+                if (userTokenBalance[0].yes < amount || userTokenBalance[0].no < amount * ratio) {
+                    throw "You do not have enough tokens to add liquidity at the pool's current ratio.";
+                }
+                // //Proceed with adding liquidity
+                trade.addLiquidity(req.params.market_id, req.params.user_id, amount, amount * ratio, liquidityShares);
+            } else if (addOrRemove === "REMOVE") {
+                //Check if YES NO balance is correct
+                let userTokenBalance = await getDB()
+                    .collection(BALANCES)
+                    .find(
+                        {
+                            market_id: ObjectId(req.params.market_id),
+                            user_id: ObjectId(req.params.user_id),
+                        },
+                        { projection: { _id: 0, liquidityShares: 1 } }
+                    )
+                    .toArray();
+                if (userTokenBalance[0].liquidityShares < amount) {
+                    throw "You are trying to redeem more than your share of liquidity. It is not possible. ";
                 }
                 //Proceed with Redemption
-                trade.removeLiquidity(req.params.market_id, req.params.user_id, amount);
+                trade.removeLiquidity(req.params.market_id, req.params.user_id, amount, openMarketsArray[0].politicians[0].liquidityShares, openMarketsArray[0].politicians[0].yes, openMarketsArray[0].politicians[0].no);
             } else {
                 throw "ADD or REMOVE wasn't specified.";
             }

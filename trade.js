@@ -10,6 +10,8 @@ module.exports = {
     tradeSellNo,
     mintTokens,
     redeemTokens,
+    addLiquidity,
+    removeLiquidity,
 };
 
 //This function takes in a submitted country and check if its repeated
@@ -358,6 +360,92 @@ async function redeemTokens(market_id, user_id, amount) {
             user_id: ObjectId(user_id),
             type: "REDEEM",
             quantity: amount,
+            timestamp: new Date().getTime(),
+        });
+}
+
+async function addLiquidity(market_id, user_id, amountYes, amountNo, liquidityShares) {
+    //update market tokens
+    await getDB()
+        .collection("openPredictionMarkets")
+        .updateOne(
+            {
+                politicians: {
+                    $elemMatch: { market_id: ObjectId(market_id) },
+                },
+            },
+            {
+                $inc: { "politicians.$.yes": amountYes, "politicians.$.no": amountNo, "politicians.$.liquidityShares": liquidityShares },
+            }
+        );
+    //update token balance of user
+    await getDB()
+        .collection("balances")
+        .updateOne(
+            {
+                market_id: ObjectId(market_id),
+                user_id: ObjectId(user_id),
+            },
+            {
+                $inc: { no: -amountYes, yes: -amountNo, liquidityShares: liquidityShares },
+            },
+            {
+                upsert: true,
+            }
+        );
+    //update Order History
+    await getDB()
+        .collection("orderHistory")
+        .insertOne({
+            market_id: ObjectId(market_id),
+            user_id: ObjectId(user_id),
+            type: "ADD LIQUIDITY",
+            quantityYes: amountYes,
+            quantityNo: amountNo,
+            liquidityShares: liquidityShares,
+            timestamp: new Date().getTime(),
+        });
+}
+
+async function removeLiquidity(market_id, user_id, shares, totalShares, yesTokens, noTokens) {
+    //update market tokens
+    await getDB()
+        .collection("openPredictionMarkets")
+        .updateOne(
+            {
+                politicians: {
+                    $elemMatch: { market_id: ObjectId(market_id) },
+                },
+            },
+            {
+                $inc: { "politicians.$.yes": -(shares / totalShares) * yesTokens, "politicians.$.no": -(shares / totalShares) * noTokens, "politicians.$.liquidityShares": -shares },
+            }
+        );
+    //update token balance of user
+    await getDB()
+        .collection("balances")
+        .updateOne(
+            {
+                market_id: ObjectId(market_id),
+                user_id: ObjectId(user_id),
+            },
+            {
+                $inc: { yes: (shares / totalShares) * yesTokens, no: (shares / totalShares) * noTokens, liquidityShares: -shares },
+            },
+            {
+                upsert: true,
+            }
+        );
+    //update Order History
+    await getDB()
+        .collection("orderHistory")
+        .insertOne({
+            market_id: ObjectId(market_id),
+            user_id: ObjectId(user_id),
+            type: "REMOVE LIQUIDITY",
+            quantityYes: (shares / totalShares) * yesTokens,
+            quantityNo: (shares / totalShares) * noTokens,
+            liquidityShares: shares,
             timestamp: new Date().getTime(),
         });
 }
