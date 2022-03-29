@@ -8,6 +8,8 @@ module.exports = {
     tradeBuyNo,
     tradeSellYes,
     tradeSellNo,
+    mintTokens,
+    redeemTokens,
 };
 
 //This function takes in a submitted country and check if its repeated
@@ -69,6 +71,7 @@ async function tradeBuyYes(market_id, user_id, amount) {
         .insertOne({
             market_id: ObjectId(market_id),
             user_id: ObjectId(user_id),
+            type: "TRADE",
             buyOrSell: "BUY",
             yesOrNo: "YES",
             quantity: yesTokens + amount - invariantK / (noTokens + amount),
@@ -134,6 +137,7 @@ async function tradeBuyNo(market_id, user_id, amount) {
         .insertOne({
             market_id: ObjectId(market_id),
             user_id: ObjectId(user_id),
+            type: "TRADE",
             buyOrSell: "BUY",
             yesOrNo: "NO",
             quantity: noTokens + amount - invariantK / (yesTokens + amount),
@@ -200,6 +204,7 @@ async function tradeSellYes(market_id, user_id, amount) {
         .insertOne({
             market_id: ObjectId(market_id),
             user_id: ObjectId(user_id),
+            type: "TRADE",
             buyOrSell: "SELL",
             yesOrNo: "YES",
             quantity: amount,
@@ -266,10 +271,93 @@ async function tradeSellNo(market_id, user_id, amount) {
         .insertOne({
             market_id: ObjectId(market_id),
             user_id: ObjectId(user_id),
+            type: "TRADE",
             buyOrSell: "SELL",
             yesOrNo: "NO",
             quantity: amount,
             quantityInUSD: amount - amountInDollar,
+            timestamp: new Date().getTime(),
+        });
+}
+
+async function mintTokens(market_id, user_id, amount) {
+    //update USD balance of user
+    await getDB()
+        .collection("user")
+        .updateOne(
+            {
+                _id: ObjectId(user_id),
+            },
+            {
+                $inc: {
+                    USD: -amount,
+                },
+            }
+        );
+    //update token balance of user
+    await getDB()
+        .collection("balances")
+        .updateOne(
+            {
+                market_id: ObjectId(market_id),
+                user_id: ObjectId(user_id),
+            },
+            {
+                $inc: { no: amount, yes: amount },
+            },
+            {
+                upsert: true,
+            }
+        );
+    //update Order History
+    await getDB()
+        .collection("orderHistory")
+        .insertOne({
+            market_id: ObjectId(market_id),
+            user_id: ObjectId(user_id),
+            type: "MINT",
+            quantity: amount,
+            timestamp: new Date().getTime(),
+        });
+}
+
+async function redeemTokens(market_id, user_id, amount) {
+    //update USD balance of user
+    await getDB()
+        .collection("user")
+        .updateOne(
+            {
+                _id: ObjectId(user_id),
+            },
+            {
+                $inc: {
+                    USD: amount,
+                },
+            }
+        );
+    //update token balance of user
+    await getDB()
+        .collection("balances")
+        .updateOne(
+            {
+                market_id: ObjectId(market_id),
+                user_id: ObjectId(user_id),
+            },
+            {
+                $inc: { no: -amount, yes: -amount },
+            },
+            {
+                upsert: true,
+            }
+        );
+    //update Order History
+    await getDB()
+        .collection("orderHistory")
+        .insertOne({
+            market_id: ObjectId(market_id),
+            user_id: ObjectId(user_id),
+            type: "REDEEM",
+            quantity: amount,
             timestamp: new Date().getTime(),
         });
 }

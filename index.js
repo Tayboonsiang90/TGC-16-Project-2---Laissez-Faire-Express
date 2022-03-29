@@ -472,10 +472,118 @@ async function main() {
         }
     });
 
-    app.put("add_liquidity/:market_id/:user_id", async function (req, res) {
+    // Minting and Redeem
+    app.put("/mint_redeem/:market_id/:user_id", async function (req, res) {
         try {
+            //destructuring
+            let { mintOrRedeem, amount } = req.body;
+            if (mintOrRedeem === "MINT") {
+                //check if USD amount is correct
+                let userDetails = await getDB()
+                    .collection(USER)
+                    .find(
+                        {
+                            _id: ObjectId(req.params.user_id),
+                        },
+                        { projection: { _id: 0, USD: 1 } }
+                    )
+                    .toArray();
+                if (userDetails[0].USD < amount) throw "You do not have enough USD to MINT that amount specified.";
+                //Proceed with Minting
+                trade.mintTokens(req.params.market_id, req.params.user_id, amount);
+            } else if (mintOrRedeem === "REDEEM") {
+                //Check if YES NO balance is correct
+                let userTokenBalance = await getDB()
+                    .collection(BALANCES)
+                    .find(
+                        {
+                            market_id: ObjectId(req.params.market_id),
+                            user_id: ObjectId(req.params.user_id),
+                        },
+                        { projection: { _id: 0, yes: 1, no: 1 } }
+                    )
+                    .toArray();
+                if (Math.min(userTokenBalance[0].yes, userTokenBalance[0].no) < amount) {
+                    throw "You do not have enough tokens to redeem.";
+                }
+                //Proceed with Redemption
+                trade.redeemTokens(req.params.market_id, req.params.user_id, amount);
+            } else {
+                throw "MINT or REDEEM wasn't specified.";
+            }
+
             res.status(200);
-            res.json({ balances: returnArray });
+            res.json({
+                message: "You have mint/redeemed successfully!",
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+
+    // Liquidity
+    app.put("/liquidity/:market_id/:user_id", async function (req, res) {
+        try {
+            //destructuring
+            let { addOrRemove, amount } = req.body;
+            console.log("hello");
+            if (addOrRemove === "ADD") {
+                console.log("hi");
+                //Logic - First pull out the ratio in the pool
+                let openMarketsArray = await getDB()
+                    .collection(OPEN_PREDICTION_MARKETS)
+                    .find({
+                        politicians: {
+                            $elemMatch: { market_id: ObjectId(req.params.market_id) },
+                        },
+                    })
+                    .project({ "politicians.$.yes": 1, "politicians.$.no": 1 })
+                    .toArray();
+                console.log(openMarketsArray);
+                // //Logic - Secondly pull out user YES NO balance
+                // let userTokenBalance = await getDB()
+                //     .collection(BALANCES)
+                //     .find(
+                //         {
+                //             market_id: ObjectId(req.params.market_id),
+                //             user_id: ObjectId(req.params.user_id),
+                //         },
+                //         { projection: { _id: 0, yes: 1, no: 1 } }
+                //     )
+                //     .toArray();
+                // //Logic - Thirdly, check if these balances are enough to satisfy
+                // if (Math.min(userTokenBalance[0].yes, userTokenBalance[0].no) < amount) {
+                //     throw "You do not have enough tokens to redeem.";
+                // }
+                // //Proceed with adding liquidity
+                // trade.addLiquidity(req.params.market_id, req.params.user_id, amount);
+            } else if (addOrRemove === "REMOVE") {
+                //Check if YES NO balance is correct
+                let userTokenBalance = await getDB()
+                    .collection(BALANCES)
+                    .find(
+                        {
+                            market_id: ObjectId(req.params.market_id),
+                            user_id: ObjectId(req.params.user_id),
+                        },
+                        { projection: { _id: 0, yes: 1, no: 1 } }
+                    )
+                    .toArray();
+                if (Math.min(userTokenBalance[0].yes, userTokenBalance[0].no) < amount) {
+                    throw "You do not have enough tokens to redeem.";
+                }
+                //Proceed with Redemption
+                trade.removeLiquidity(req.params.market_id, req.params.user_id, amount);
+            } else {
+                throw "ADD or REMOVE wasn't specified.";
+            }
+            res.status(200);
+            res.json({
+                message: "You have added/removed liquidity successfully!",
+            });
         } catch (e) {
             res.status(500);
             res.json({
