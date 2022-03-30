@@ -391,11 +391,11 @@ async function main() {
                 })
                 .toArray();
             if (returnArray.length == 0) {
-                returnArray = [{ yes: 0, no: 0, liquidity: 0 }];
+                returnArray = [{ yes: 0, no: 0, liquidityShares: 0 }];
             }
 
             res.status(200);
-            res.json({ balances: { yes: returnArray[0].yes || 0, no: returnArray[0].no || 0, liquidityShares: returnArray[0].liquidityShares } });
+            res.json({ balances: { yes: returnArray[0].yes || 0, no: returnArray[0].no || 0, liquidityShares: returnArray[0].liquidityShares || 0 } });
         } catch (e) {
             res.status(500);
             res.json({
