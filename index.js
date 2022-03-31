@@ -404,6 +404,29 @@ async function main() {
         }
     });
 
+    //retrieves a user's balance for the market
+    app.get("/order_history/:market_id/:user_id", async function (req, res) {
+        try {
+            let returnArray = await getDB()
+                .collection(ORDER_HISTORY)
+                .find({
+                    market_id: ObjectId(req.params.market_id),
+                    user_id: ObjectId(req.params.user_id),
+                })
+                .sort({
+                    timestamp: -1,
+                })
+                .toArray();
+            res.status(200);
+            res.json(returnArray);
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+
     //Buy Sell Market Transaction
     app.put("/trade/:market_id/:user_id", async function (req, res) {
         try {
