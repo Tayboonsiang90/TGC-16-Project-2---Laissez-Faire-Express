@@ -345,13 +345,34 @@ async function main() {
 
     //Retrieves all open markets in database
     app.get("/open_markets", async function (req, res) {
-        let openMarketsArray = await getDB()
-            .collection(OPEN_PREDICTION_MARKETS)
-            .find()
-            .sort({
-                timestampCreated: 1,
-            })
-            .toArray();
+        // req.query
+        // sortOptions: this.state.sortOptions,
+        // ascendDescend: this.state.ascendDescend,
+        // marketType: this.state.marketType,
+        // search: this.state.search,
+        // sortOptions: 0, //0. Expiry Date, 1. Volume, 2. Liquidity
+        // ascendDescend: 0, //0. Descending, 1. Ascending
+        // marketType: [0, 1, 2], //0,1,2 (Open, Resolving, Closed)
+        // search: "",
+
+        console.log(req.query);
+
+        let criteria = {};
+
+        if (req.query.search) {
+            console.log("Activated");
+            criteria = { $or: [] };
+            criteria["$or"].push({ position: { $regex: req.query.search, $options: "i" } });
+            criteria["$or"].push({ country: { $regex: req.query.search, $options: "i" } });
+        }
+        console.log(criteria);
+
+        let sortOptionsArray = ["timestampExpiry", "timestampCreated", "volume", "liquidity"];
+        let sortBy = {};
+        sortBy[sortOptionsArray[req.query.sortOptions]] = Number(req.query.ascendDescend) ? -1 : 1; //Descending -1, ascending 1
+        console.log(sortBy);
+
+        let openMarketsArray = await getDB().collection(OPEN_PREDICTION_MARKETS).find(criteria).sort(sortBy).toArray();
 
         res.status(200);
         res.json({ openMarkets: openMarketsArray });
