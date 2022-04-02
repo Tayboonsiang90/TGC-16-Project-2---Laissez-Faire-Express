@@ -35,7 +35,7 @@ async function tradeBuyYes(market_id, user_id, amount) {
                 },
             },
             {
-                $inc: { "politicians.$.no": amount, "politicians.$.volume": amount },
+                $inc: { "politicians.$.no": amount, "politicians.$.volume": amount, volume: amount },
                 $set: { "politicians.$.yes": invariantK / (noTokens + amount) },
             }
         );
@@ -101,7 +101,7 @@ async function tradeBuyNo(market_id, user_id, amount) {
                 },
             },
             {
-                $inc: { "politicians.$.yes": amount, "politicians.$.volume": amount },
+                $inc: { "politicians.$.yes": amount, "politicians.$.volume": amount, volume: amount },
                 $set: { "politicians.$.no": invariantK / (yesTokens + amount) },
             }
         );
@@ -168,7 +168,7 @@ async function tradeSellYes(market_id, user_id, amount) {
                 },
             },
             {
-                $inc: { "politicians.$.yes": amountInDollar, "politicians.$.volume": amountInDollar },
+                $inc: { "politicians.$.yes": amountInDollar, "politicians.$.volume": amountInDollar, volume: amountInDollar },
                 $set: { "politicians.$.no": invariantK / (yesTokens + amountInDollar) },
             }
         );
@@ -235,7 +235,7 @@ async function tradeSellNo(market_id, user_id, amount) {
                 },
             },
             {
-                $inc: { "politicians.$.no": amountInDollar, "politicians.$.volume": amountInDollar },
+                $inc: { "politicians.$.no": amountInDollar, "politicians.$.volume": amountInDollar, volume: amountInDollar },
                 $set: { "politicians.$.yes": invariantK / (noTokens + amountInDollar) },
             }
         );

@@ -21,12 +21,14 @@ const OPEN_PREDICTION_MARKETS = "openPredictionMarkets";
 const RESOLVING_PREDICTION_MARKETS = "resolvingPredictionMarkets";
 const CLOSED_PREDICTION_MARKETS = "closedPredictionMarkets";
 const STAFF = "staff";
+const POSITION = "position";
 
 //helper functions
 const user = require("./user.js");
 const country = require("./country.js");
 const transactions = require("./transactions.js");
 const trade = require("./trade.js");
+const openMarkets = require("./openMarkets.js");
 
 // Routes
 async function main() {
@@ -244,10 +246,16 @@ async function main() {
     //initial seeding of countries
     // app.post("/country_initial", async function (req, res) {
     //     console.log("Add country in progress");
-    //     let countryInput = req.body.country;
+    //     console.log(req.body);
+    //     let countryInput = req.body.country.split(",");
+    //     let unicodeInput = req.body.unicode.split(",");
+    //     console.log(countryInput);
+    //     console.log(unicodeInput);
 
-    //     for (let i of countryInput.split(",")) {
-    //         getDB().collection(COUNTRY).insertOne({ name: i.trim() });
+    //     for (let i = 0; i < countryInput.length; i++) {
+    //         getDB()
+    //             .collection(COUNTRY)
+    //             .insertOne({ name: countryInput[i], unicode1: unicodeInput[i*2], unicode2: unicodeInput[i*2 + 1] });
     //     }
 
     //     res.status(200);
@@ -256,7 +264,22 @@ async function main() {
     //     });
     // });
 
-    //retrieves all allowed countries
+    // initial seeding of countries
+    // app.post("/position_initial", async function (req, res) {
+    //     console.log("Add positions in progress");
+    //     let positionInput = req.body.position;
+
+    //     for (let i of positionInput.split(",")) {
+    //         getDB().collection(POSITION).insertOne({ name: i.trim() });
+    //     }
+
+    //     res.status(200);
+    //     res.json({
+    //         message: "The record has been added successfully",
+    //     });
+    // });
+
+    //Adds a country into the list of allowed countries
     app.post("/country", async function (req, res) {
         let countryInput = req.body.country;
 
@@ -307,72 +330,149 @@ async function main() {
         res.json({ countryArray });
     });
 
+    //Return a list of positions in database, {positionArray:[position1, position2]}
+    app.get("/position", async function (req, res) {
+        let positionList = await getDB().collection(POSITION).find().sort({ name: 1 }).project({ _id: 0 }).toArray();
+        let positionArray = [];
+        for (let item of positionList) {
+            positionArray.push(item.name);
+        }
+
+        res.status(200);
+        res.json({ positionArray });
+    });
+
     //Create a new prediction market in database
     //Recieves <if it is a political position> {position, country, description, politicians(array), timestampExpiry}
     app.post("/open_markets", async function (req, res) {
         let { position, country, description, politicians, timestampExpiry } = req.body;
+        timestampExpiry = Number(timestampExpiry);
         //Validation
+        try {
+            if (!(await openMarkets.checkCountry(country))) {
+                throw "Country is not in the list of valid countries.";
+            }
+            if (!(await openMarkets.checkPosition(position))) {
+                throw "Position is not in the list of valid positions.";
+            }
+            if (!openMarkets.checkDate(timestampExpiry)) {
+                throw "You cannot create a market with an expiry date in the past.";
+            }
 
-        //Massaging the input
-        let politiciansArray = [];
-        for (let item of politicians) {
-            let objectEntry = {};
-            objectEntry.politician = item;
-            objectEntry.yes = 2000;
-            objectEntry.no = 2000;
-            objectEntry.volume = 0;
-            objectEntry.invariantK = objectEntry.yes * objectEntry.no;
-            politiciansArray.push(objectEntry);
-        }
+            //Massaging the input
+            let politiciansArray = [];
+            for (let item of politicians) {
+                let objectEntry = {};
+                objectEntry.politician = item;
+                objectEntry.yes = 2000;
+                objectEntry.no = 2000;
+                objectEntry.liquidityShares = 100;
+                objectEntry.volume = 0;
+                objectEntry.market_id = new ObjectId();
+                objectEntry.invariantK = objectEntry.yes * objectEntry.no;
+                politiciansArray.push(objectEntry);
+            }
 
-        //Insert document after validation
-        await getDB()
-            .collection(OPEN_PREDICTION_MARKETS)
-            .insertOne({
+            //Insert document after validation
+            await getDB().collection(OPEN_PREDICTION_MARKETS).insertOne({
                 position: position,
                 country: country,
                 description: description,
                 politicians: politiciansArray,
                 timestampCreated: new Date().getTime(),
-                timestampExpiry: new Date(timestampExpiry).getTime(),
+                timestampExpiry: timestampExpiry,
+                volume: 0,
             });
 
-        res.status(200);
-        res.json({
-            message: "Open Market successfully created.",
-        });
+            res.status(200);
+            res.json({
+                message: "Open Market successfully created.",
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
     });
 
     //Retrieves all open markets in database
     app.get("/open_markets", async function (req, res) {
         // req.query
-        // sortOptions: this.state.sortOptions,
-        // ascendDescend: this.state.ascendDescend,
-        // marketType: this.state.marketType,
+        // sortOptions: this.state.sortOptions, //0. Expiry Date, 1. Creation Date, 2. Volume, 3. Liquidity
+        // ascendDescend: this.state.ascendDescend, //0. Descending, 1. Ascending
+        // marketType: this.state.marketType,//0,1,2 (Open, Resolving, Closed)
         // search: this.state.search,
-        // sortOptions: 0, //0. Expiry Date, 1. Volume, 2. Liquidity
-        // ascendDescend: 0, //0. Descending, 1. Ascending
-        // marketType: [0, 1, 2], //0,1,2 (Open, Resolving, Closed)
-        // search: "",
-
-        console.log(req.query);
+        // expiryDateGreater: this.state.expiryDateGreater,
+        // expiryDateLesser: this.state.expiryDateLesser,
+        // creationDateGreater: this.state.creationDateGreater,
+        // creationDateLesser: this.state.creationDateLesser,
+        // volumeGreater: this.state.volumeGreater,
+        // volumeLesser: this.state.volumeLesser,
 
         let criteria = {};
 
         if (req.query.search) {
-            console.log("Activated");
             criteria = { $or: [] };
             criteria["$or"].push({ position: { $regex: req.query.search, $options: "i" } });
             criteria["$or"].push({ country: { $regex: req.query.search, $options: "i" } });
+            criteria["$or"].push({ politicians: { $elemMatch: { politician: { $regex: req.query.search, $options: "i" } } } });
         }
-        console.log(criteria);
+
+        //destructure
+        let { expiryDateGreater, expiryDateLesser, creationDateGreater, creationDateLesser, volumeGreater, volumeLesser } = req.query;
+
+        if (Number(expiryDateGreater)) {
+            criteria["timestampExpiry"] = criteria["timestampExpiry"] || {};
+            criteria["timestampExpiry"]["$gte"] = Number(expiryDateGreater);
+        }
+        if (Number(expiryDateLesser)) {
+            criteria["timestampExpiry"] = criteria["timestampExpiry"] || {};
+            criteria["timestampExpiry"]["$lte"] = Number(expiryDateLesser);
+        }
+        if (Number(creationDateGreater)) {
+            criteria["timestampCreated"] = criteria["timestampCreated"] || {};
+            criteria["timestampCreated"]["$gte"] = Number(creationDateGreater);
+        }
+        if (Number(creationDateLesser)) {
+            criteria["timestampCreated"] = criteria["timestampCreated"] || {};
+            criteria["timestampCreated"]["$lte"] = Number(creationDateLesser);
+        }
+        if (Number(volumeGreater)) {
+            criteria["volume"] = criteria["volume"] || {};
+            criteria["volume"]["$gte"] = Number(volumeGreater);
+        }
+        if (Number(volumeLesser)) {
+            criteria["volume"] = criteria["volume"] || {};
+            criteria["volume"]["$lte"] = Number(volumeLesser);
+        }
 
         let sortOptionsArray = ["timestampExpiry", "timestampCreated", "volume", "liquidity"];
         let sortBy = {};
-        sortBy[sortOptionsArray[req.query.sortOptions]] = Number(req.query.ascendDescend) ? -1 : 1; //Descending -1, ascending 1
-        console.log(sortBy);
+        if (req.query.sortOptions != "3") {
+            sortBy[sortOptionsArray[req.query.sortOptions]] = Number(req.query.ascendDescend) ? -1 : 1;
+        } //Descending -1, ascending 1
 
-        let openMarketsArray = await getDB().collection(OPEN_PREDICTION_MARKETS).find(criteria).sort(sortBy).toArray();
+        // let openMarketsArray = await getDB().collection(OPEN_PREDICTION_MARKETS).find(criteria).sort(sortBy).toArray();
+        let openMarketsArray = await getDB()
+            .collection(OPEN_PREDICTION_MARKETS)
+            .aggregate([
+                {
+                    $lookup: {
+                        from: COUNTRY,
+                        localField: "country",
+                        foreignField: "name",
+                        as: "countryDetails",
+                    },
+                },
+                {
+                    $match: criteria,
+                },
+                {
+                    $sort: sortBy,
+                },
+            ])
+            .toArray();
 
         res.status(200);
         res.json({ openMarkets: openMarketsArray });
