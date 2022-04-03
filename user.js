@@ -28,7 +28,7 @@ async function checkUserEmailRepeat(email) {
 //This function checks if anpassword is keyed in valid REGEX (minimum 6 character, at least one letter and one number and special character)
 //Return true if it is a valid password, return false if it is an invalid password
 function checkUserPasswordRegex(password) {
-    isValid = password.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#@$!%*?&-])[A-Za-z\d@#$!%*?&-]{6,}$/);
+    isValid = password.match(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/);
     return isValid ? true : false;
 }
 //This function checks if a name is keyed in valid REGEX (No special characters and numbers, only 1 space between words, no starting or trailing space)

@@ -54,7 +54,7 @@ async function main() {
                 throw "Email is already taken. Please try again.";
             }
             if (!user.checkUserPasswordRegex(password)) {
-                throw "Password is not complex enough. It needs to be 6 characters min with at least 1 letter, 1 number and 1 special character";
+                throw "Password is not complex enough. It needs to be 6 characters min.";
             }
             if (!user.checkUserNameRegex(name)) {
                 throw "Name is not valid. Please try again.";
