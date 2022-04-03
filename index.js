@@ -206,6 +206,57 @@ async function main() {
 
     //Validate email and username for login purposes
     //returns user details
+    app.get("/leaderboard", async function (req, res) {
+        try {
+            const pipeline = [
+                {
+                    $project: {
+                        roi: {
+                            $subtract: [
+                                {
+                                    $divide: [
+                                        {
+                                            $multiply: [
+                                                100,
+                                                {
+                                                    $add: ["$USD", "$totalWithdrew"],
+                                                },
+                                            ],
+                                        },
+                                        "$totalDeposited",
+                                    ],
+                                },
+                                100,
+                            ],
+                        },
+                        email: "$email",
+                        id: "$id",
+                        timestamp: "$timestamp",
+                    },
+                },
+                { $sort: { roi: -1 } },
+            ];
+            let leaderboard = await getDB().collection(USER).aggregate(pipeline).toArray();
+
+            for (let i of leaderboard) {
+                i._id = "...." + i._id.toString().slice(-5);
+                i.email = i.email.substring(0, 3) + i.email.substring(3).replace(/.(?=.*@)/g, "*");
+            }
+
+            res.status(200);
+            res.json({
+                message: leaderboard,
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+
+    //Validate email and username for login purposes
+    //returns user details
     app.get("/login", async function (req, res) {
         try {
             userDetails = await getDB().collection(USER).findOne({
@@ -243,41 +294,41 @@ async function main() {
         });
     });
 
-    //initial seeding of countries
-    // app.post("/country_initial", async function (req, res) {
-    //     console.log("Add country in progress");
-    //     console.log(req.body);
-    //     let countryInput = req.body.country.split(",");
-    //     let unicodeInput = req.body.unicode.split(",");
-    //     console.log(countryInput);
-    //     console.log(unicodeInput);
-
-    //     for (let i = 0; i < countryInput.length; i++) {
-    //         getDB()
-    //             .collection(COUNTRY)
-    //             .insertOne({ name: countryInput[i], unicode1: unicodeInput[i*2], unicode2: unicodeInput[i*2 + 1] });
-    //     }
-
-    //     res.status(200);
-    //     res.json({
-    //         message: "The record has been added successfully",
-    //     });
-    // });
-
     // initial seeding of countries
-    // app.post("/position_initial", async function (req, res) {
-    //     console.log("Add positions in progress");
-    //     let positionInput = req.body.position;
+    app.post("/country_initial", async function (req, res) {
+        console.log("Add country in progress");
+        console.log(req.body);
+        let countryInput = req.body.country.split(",");
+        let unicodeInput = req.body.unicode.split(",");
+        console.log(countryInput);
+        console.log(unicodeInput);
 
-    //     for (let i of positionInput.split(",")) {
-    //         getDB().collection(POSITION).insertOne({ name: i.trim() });
-    //     }
+        for (let i = 0; i < countryInput.length; i++) {
+            getDB()
+                .collection(COUNTRY)
+                .insertOne({ name: countryInput[i], unicode1: unicodeInput[i * 2], unicode2: unicodeInput[i * 2 + 1] });
+        }
 
-    //     res.status(200);
-    //     res.json({
-    //         message: "The record has been added successfully",
-    //     });
-    // });
+        res.status(200);
+        res.json({
+            message: "The record has been added successfully",
+        });
+    });
+
+    // initial seeding of positions
+    app.post("/position_initial", async function (req, res) {
+        console.log("Add positions in progress");
+        let positionInput = req.body.position;
+
+        for (let i of positionInput.split(",")) {
+            getDB().collection(POSITION).insertOne({ name: i.trim() });
+        }
+
+        res.status(200);
+        res.json({
+            message: "The record has been added successfully",
+        });
+    });
 
     //Adds a country into the list of allowed countries
     app.post("/country", async function (req, res) {
