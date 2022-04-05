@@ -18,7 +18,6 @@ const BALANCES = "balances";
 const ORDER_HISTORY = "orderHistory";
 const TRANSACTIONS = "transactions";
 const OPEN_PREDICTION_MARKETS = "openPredictionMarkets";
-const RESOLVING_PREDICTION_MARKETS = "resolvingPredictionMarkets";
 const CLOSED_PREDICTION_MARKETS = "closedPredictionMarkets";
 const STAFF = "staff";
 const POSITION = "position";
@@ -433,6 +432,7 @@ async function main() {
                 timestampCreated: new Date().getTime(),
                 timestampExpiry: timestampExpiry,
                 volume: 0,
+                type: "open",
             });
 
             res.status(200);
@@ -447,7 +447,7 @@ async function main() {
         }
     });
 
-    //Retrieves all open markets in database
+    //Retrieves all markets in database
     app.get("/open_markets", async function (req, res) {
         // req.query
         // sortOptions: this.state.sortOptions, //0. Expiry Date, 1. Creation Date, 2. Volume, 3. Liquidity
@@ -468,6 +468,18 @@ async function main() {
             criteria["$or"].push({ position: { $regex: req.query.search, $options: "i" } });
             criteria["$or"].push({ country: { $regex: req.query.search, $options: "i" } });
             criteria["$or"].push({ politicians: { $elemMatch: { politician: { $regex: req.query.search, $options: "i" } } } });
+        }
+
+        if (req.query.marketType) {
+            if (!criteria["$or"]) {
+                criteria = { $or: [] };
+            }
+            if (req.query.marketType.includes("0") || req.query.marketType.includes("1")) {
+                criteria["$or"].push({ type: "open" });
+            }
+            if (req.query.marketType.includes("2")) {
+                criteria["$or"].push({ type: "closed" });
+            }
         }
 
         //destructure
@@ -568,6 +580,36 @@ async function main() {
 
             res.status(200);
             res.json({ balances: { yes: returnArray[0].yes || 0, no: returnArray[0].no || 0, liquidityShares: returnArray[0].liquidityShares || 0 } });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+
+    //Retrives user token portfolio
+    app.get("/portfolio/:user_id", async function (req, res) {
+        try {
+            const criteria = [
+                {
+                    $lookup: {
+                        from: OPEN_PREDICTION_MARKETS,
+                        localField: "market_id",
+                        foreignField: "politicians.market_id",
+                        as: "market_details",
+                    },
+                },
+                {
+                    $match: {
+                        user_id: ObjectId(req.params.user_id),
+                    },
+                },
+            ];
+            let aggregateResult = await getDB().collection(BALANCES).aggregate(criteria).toArray();
+
+            res.status(200);
+            res.json({ balances: aggregateResult });
         } catch (e) {
             res.status(500);
             res.json({
