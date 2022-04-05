@@ -18,7 +18,6 @@ const BALANCES = "balances";
 const ORDER_HISTORY = "orderHistory";
 const TRANSACTIONS = "transactions";
 const OPEN_PREDICTION_MARKETS = "openPredictionMarkets";
-const RESOLVING_PREDICTION_MARKETS = "resolvingPredictionMarkets";
 const CLOSED_PREDICTION_MARKETS = "closedPredictionMarkets";
 const STAFF = "staff";
 const POSITION = "position";
@@ -421,6 +420,7 @@ async function main() {
                 objectEntry.volume = 0;
                 objectEntry.market_id = new ObjectId();
                 objectEntry.invariantK = objectEntry.yes * objectEntry.no;
+                objectEntry.chart = [[new Date().getTime(), 0.5]];
                 politiciansArray.push(objectEntry);
             }
 
@@ -433,6 +433,7 @@ async function main() {
                 timestampCreated: new Date().getTime(),
                 timestampExpiry: timestampExpiry,
                 volume: 0,
+                type: "open",
             });
 
             res.status(200);
@@ -447,7 +448,7 @@ async function main() {
         }
     });
 
-    //Retrieves all open markets in database
+    //Retrieves all markets in database
     app.get("/open_markets", async function (req, res) {
         // req.query
         // sortOptions: this.state.sortOptions, //0. Expiry Date, 1. Creation Date, 2. Volume, 3. Liquidity
@@ -468,6 +469,31 @@ async function main() {
             criteria["$or"].push({ position: { $regex: req.query.search, $options: "i" } });
             criteria["$or"].push({ country: { $regex: req.query.search, $options: "i" } });
             criteria["$or"].push({ politicians: { $elemMatch: { politician: { $regex: req.query.search, $options: "i" } } } });
+        }
+
+        if (req.query.marketType) {
+            if (!criteria["$or"]) {
+                criteria = { $or: [] };
+                if (req.query.marketType.includes("0") || req.query.marketType.includes("1")) {
+                    criteria["$or"].push({ type: "open" });
+                }
+                if (req.query.marketType.includes("2")) {
+                    criteria["$or"].push({ type: "closed" });
+                }
+            } else {
+                let temp1 = { $or: criteria["$or"] };
+                delete criteria["$or"];
+                let temp2 = { $or: [] };
+                if (req.query.marketType.includes("0") || req.query.marketType.includes("1")) {
+                    temp2["$or"].push({ type: "open" });
+                }
+                if (req.query.marketType.includes("2")) {
+                    temp2["$or"].push({ type: "closed" });
+                }
+                criteria = { $and: [] };
+                criteria["$and"].push(temp1);
+                criteria["$and"].push(temp2);
+            }
         }
 
         //destructure
@@ -576,6 +602,36 @@ async function main() {
         }
     });
 
+    //Retrives user token portfolio
+    app.get("/portfolio/:user_id", async function (req, res) {
+        try {
+            const criteria = [
+                {
+                    $lookup: {
+                        from: OPEN_PREDICTION_MARKETS,
+                        localField: "market_id",
+                        foreignField: "politicians.market_id",
+                        as: "market_details",
+                    },
+                },
+                {
+                    $match: {
+                        user_id: ObjectId(req.params.user_id),
+                    },
+                },
+            ];
+            let aggregateResult = await getDB().collection(BALANCES).aggregate(criteria).toArray();
+
+            res.status(200);
+            res.json({ balances: aggregateResult });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+
     //retrieves a user's balance for the market
     app.get("/order_history/:market_id/:user_id", async function (req, res) {
         try {
@@ -605,6 +661,8 @@ async function main() {
             //destructuring
             let { buyOrSell, yesOrNo, amount } = req.body;
             // Necessary validation
+            // Check if it is an expired market
+
             // Check amount if not positive
             if (amount <= 0) throw "The amount supplied is invalid (Negative or Zero). Please re-try.";
             if (buyOrSell === "BUY") {
