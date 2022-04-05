@@ -420,7 +420,9 @@ async function main() {
                 objectEntry.volume = 0;
                 objectEntry.market_id = new ObjectId();
                 objectEntry.invariantK = objectEntry.yes * objectEntry.no;
-                objectEntry.chart = [[new Date().getTime(), 0.5]];
+                objectEntry.chart1 = [[new Date().getTime(), 50]];
+                objectEntry.chart2 = [[new Date().getTime(), 50]];
+                objectEntry.chart3 = [[new Date().getTime(), 0]];
                 politiciansArray.push(objectEntry);
             }
 
