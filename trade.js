@@ -25,6 +25,7 @@ async function tradeBuyYes(market_id, user_id, amount) {
     let yesTokens = marketDetails[0].politicians[0].yes;
     let noTokens = marketDetails[0].politicians[0].no;
     let invariantK = marketDetails[0].politicians[0].invariantK;
+    let price = (noTokens + amount) / (invariantK / (noTokens + amount) + (noTokens + amount));
     //Update x, y and volume
     await getDB()
         .collection("openPredictionMarkets")
@@ -37,6 +38,7 @@ async function tradeBuyYes(market_id, user_id, amount) {
             {
                 $inc: { "politicians.$.no": amount, "politicians.$.volume": amount, volume: amount },
                 $set: { "politicians.$.yes": invariantK / (noTokens + amount) },
+                $push: { "politicians.$.chart": [new Date().getTime(), price] },
             }
         );
     //update USD balance of user
@@ -91,6 +93,7 @@ async function tradeBuyNo(market_id, user_id, amount) {
     let yesTokens = marketDetails[0].politicians[0].yes;
     let noTokens = marketDetails[0].politicians[0].no;
     let invariantK = marketDetails[0].politicians[0].invariantK;
+    let price = invariantK / (yesTokens + amount) / (invariantK / (yesTokens + amount) + (yesTokens + amount));
     //Update x, y and volume
     await getDB()
         .collection("openPredictionMarkets")
@@ -103,6 +106,7 @@ async function tradeBuyNo(market_id, user_id, amount) {
             {
                 $inc: { "politicians.$.yes": amount, "politicians.$.volume": amount, volume: amount },
                 $set: { "politicians.$.no": invariantK / (yesTokens + amount) },
+                $push: { "politicians.$.chart": [new Date().getTime(), price] },
             }
         );
     //update USD balance of user

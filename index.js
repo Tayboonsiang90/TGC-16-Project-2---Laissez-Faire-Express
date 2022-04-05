@@ -420,6 +420,7 @@ async function main() {
                 objectEntry.volume = 0;
                 objectEntry.market_id = new ObjectId();
                 objectEntry.invariantK = objectEntry.yes * objectEntry.no;
+                objectEntry.chart = [[new Date().getTime(), 0.5]];
                 politiciansArray.push(objectEntry);
             }
 
@@ -473,12 +474,25 @@ async function main() {
         if (req.query.marketType) {
             if (!criteria["$or"]) {
                 criteria = { $or: [] };
-            }
-            if (req.query.marketType.includes("0") || req.query.marketType.includes("1")) {
-                criteria["$or"].push({ type: "open" });
-            }
-            if (req.query.marketType.includes("2")) {
-                criteria["$or"].push({ type: "closed" });
+                if (req.query.marketType.includes("0") || req.query.marketType.includes("1")) {
+                    criteria["$or"].push({ type: "open" });
+                }
+                if (req.query.marketType.includes("2")) {
+                    criteria["$or"].push({ type: "closed" });
+                }
+            } else {
+                let temp1 = { $or: criteria["$or"] };
+                delete criteria["$or"];
+                let temp2 = { $or: [] };
+                if (req.query.marketType.includes("0") || req.query.marketType.includes("1")) {
+                    temp2["$or"].push({ type: "open" });
+                }
+                if (req.query.marketType.includes("2")) {
+                    temp2["$or"].push({ type: "closed" });
+                }
+                criteria = { $and: [] };
+                criteria["$and"].push(temp1);
+                criteria["$and"].push(temp2);
             }
         }
 
@@ -647,6 +661,8 @@ async function main() {
             //destructuring
             let { buyOrSell, yesOrNo, amount } = req.body;
             // Necessary validation
+            // Check if it is an expired market
+
             // Check amount if not positive
             if (amount <= 0) throw "The amount supplied is invalid (Negative or Zero). Please re-try.";
             if (buyOrSell === "BUY") {
