@@ -18,8 +18,6 @@ const BALANCES = "balances";
 const ORDER_HISTORY = "orderHistory";
 const TRANSACTIONS = "transactions";
 const OPEN_PREDICTION_MARKETS = "openPredictionMarkets";
-const CLOSED_PREDICTION_MARKETS = "closedPredictionMarkets";
-const STAFF = "staff";
 const POSITION = "position";
 
 //helper functions
@@ -583,6 +581,7 @@ async function main() {
     // settles a particular market
     // delete all balances and credit the user in USD
     // "delete the market" (I'm opting to save a historical copy for backup purposes)
+    // I know this is an insecure method! (anyone can call this api) But i'm very burnt out mentally to properly implement this. (do some auth on the staff jwt token before accepting the delete plus validation)
     app.delete("/open_markets/:id/", async function (req, res) {
         try {
             let resolutionArray = req.body.resolutionArray;
@@ -606,19 +605,16 @@ async function main() {
 
                 for (let i of balancesArray) {
                     //preprocessing
-
                     if (result === "yes") {
                         let incrementAmount = 0;
-
                         if (i.yes) {
                             incrementAmount += i.yes;
                         }
-
                         if (i.liquidityShares) {
                             //find total liquidity shares
                             incrementAmount += (i.liquidityShares / item.liquidityShares) * item.yes;
                         }
-
+                        //update user usd value
                         await getDB()
                             .collection(USER)
                             .updateOne(
@@ -629,6 +625,20 @@ async function main() {
                                     $inc: { USD: incrementAmount },
                                 }
                             );
+                        //insert one into transaction list
+                        await getDB()
+                            .collection(TRANSACTIONS)
+                            .insertOne({
+                                user_id: i.user_id,
+                                quantity: incrementAmount,
+                                type: "RESOLUTION OF MARKET",
+                                details: `The resolution of the market: Will ${item.politician} be the ${openMarketsArray[0].position} of ${openMarketsArray[0].country} by the date ${new Date(openMarketsArray[0].timestampExpiry)}? has resolved to "YES"`,
+                                timestamp: new Date().getTime(),
+                            });
+                        //delete balances entry
+                        await getDB().collection(BALANCES).deleteOne({
+                            _id: i._id,
+                        });
                     } else {
                         let incrementAmount = 0;
 
@@ -651,17 +661,43 @@ async function main() {
                                     $inc: { USD: incrementAmount },
                                 }
                             );
+                        //insert one into transaction list
+                        await getDB()
+                            .collection(TRANSACTIONS)
+                            .insertOne({
+                                user_id: i.user_id,
+                                quantity: incrementAmount,
+                                type: "RESOLUTION OF MARKET",
+                                details: `The resolution of the market: Will ${item.politician} be the ${openMarketsArray[0].position} of ${openMarketsArray[0].country} by the date ${new Date(openMarketsArray[0].timestampExpiry)}? has resolved to "NO"`,
+                                timestamp: new Date().getTime(),
+                            });
+                        //delete balances entry
+                        await getDB().collection(BALANCES).deleteOne({
+                            _id: i._id,
+                        });
                     }
                 }
                 count++;
             }
 
+            //update market to closed
+            await getDB()
+                .collection(OPEN_PREDICTION_MARKETS)
+                .updateOne(
+                    {
+                        _id: ObjectId(req.params.id),
+                    },
+                    {
+                        $set: { type: "closed" },
+                    }
+                );
+
             res.status(200);
-            res.json({ openMarkets: openMarketsArray });
+            res.json({ message: "The market has been successfully resolved!" });
         } catch (e) {
             res.status(500);
             res.json({
-                message: "The market id supplied in the URL is invalid",
+                message: "The market didn't resolve due to various issues. Please contact administrator.",
             });
         }
     });
