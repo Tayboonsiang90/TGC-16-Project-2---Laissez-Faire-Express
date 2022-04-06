@@ -39,7 +39,7 @@ async function tradeBuyYes(market_id, user_id, amount) {
             {
                 $inc: { "politicians.$.no": amount, "politicians.$.volume": amount, volume: amount },
                 $set: { "politicians.$.yes": invariantK / (noTokens + amount) },
-                $push: { "politicians.$.chart1": [new Date().getTime(), yesPrice], "politicians.$.chart2": [new Date().getTime(), noPrice] },
+                $push: { "politicians.$.chart1": [new Date().getTime(), yesPrice], "politicians.$.chart2": [new Date().getTime(), noPrice], "politicians.$.chart3": [new Date().getTime(), amount] },
             }
         );
     //update USD balance of user
@@ -108,7 +108,7 @@ async function tradeBuyNo(market_id, user_id, amount) {
             {
                 $inc: { "politicians.$.yes": amount, "politicians.$.volume": amount, volume: amount },
                 $set: { "politicians.$.no": invariantK / (yesTokens + amount) },
-                $push: { "politicians.$.chart1": [new Date().getTime(), yesPrice], "politicians.$.chart2": [new Date().getTime(), noPrice] },
+                $push: { "politicians.$.chart1": [new Date().getTime(), yesPrice], "politicians.$.chart2": [new Date().getTime(), noPrice], "politicians.$.chart3": [new Date().getTime(), amount] },
             }
         );
     //update USD balance of user

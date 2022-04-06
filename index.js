@@ -580,6 +580,92 @@ async function main() {
         }
     });
 
+    // settles a particular market
+    // delete all balances and credit the user in USD
+    // "delete the market" (I'm opting to save a historical copy for backup purposes)
+    app.delete("/open_markets/:id/", async function (req, res) {
+        try {
+            let resolutionArray = req.body.resolutionArray;
+
+            let openMarketsArray = await getDB()
+                .collection(OPEN_PREDICTION_MARKETS)
+                .find({
+                    _id: ObjectId(req.params.id),
+                })
+                .toArray();
+
+            let count = 0;
+            for (let item of openMarketsArray[0].politicians) {
+                let balancesArray = await getDB()
+                    .collection(BALANCES)
+                    .find({
+                        market_id: item.market_id,
+                    })
+                    .toArray();
+                let result = resolutionArray[count];
+
+                for (let i of balancesArray) {
+                    //preprocessing
+
+                    if (result === "yes") {
+                        let incrementAmount = 0;
+
+                        if (i.yes) {
+                            incrementAmount += i.yes;
+                        }
+
+                        if (i.liquidityShares) {
+                            //find total liquidity shares
+                            incrementAmount += (i.liquidityShares / item.liquidityShares) * item.yes;
+                        }
+
+                        await getDB()
+                            .collection(USER)
+                            .updateOne(
+                                {
+                                    _id: i.user_id,
+                                },
+                                {
+                                    $inc: { USD: incrementAmount },
+                                }
+                            );
+                    } else {
+                        let incrementAmount = 0;
+
+                        if (i.no) {
+                            incrementAmount += i.no;
+                        }
+
+                        if (i.liquidityShares) {
+                            //find total liquidity shares
+                            incrementAmount += (i.liquidityShares / item.liquidityShares) * item.no;
+                        }
+
+                        await getDB()
+                            .collection(USER)
+                            .updateOne(
+                                {
+                                    _id: i.user_id,
+                                },
+                                {
+                                    $inc: { USD: incrementAmount },
+                                }
+                            );
+                    }
+                }
+                count++;
+            }
+
+            res.status(200);
+            res.json({ openMarkets: openMarketsArray });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: "The market id supplied in the URL is invalid",
+            });
+        }
+    });
+
     //retrieves a user's balance for the market
     app.get("/balances/:market_id/:user_id", async function (req, res) {
         try {
