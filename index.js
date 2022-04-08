@@ -293,12 +293,8 @@ async function main() {
 
     // initial seeding of countries
     app.post("/country_initial", async function (req, res) {
-        console.log("Add country in progress");
-        console.log(req.body);
         let countryInput = req.body.country.split(",");
         let unicodeInput = req.body.unicode.split(",");
-        console.log(countryInput);
-        console.log(unicodeInput);
 
         for (let i = 0; i < countryInput.length; i++) {
             getDB()
@@ -314,7 +310,6 @@ async function main() {
 
     // initial seeding of positions
     app.post("/position_initial", async function (req, res) {
-        console.log("Add positions in progress");
         let positionInput = req.body.position;
 
         for (let i of positionInput.split(",")) {
@@ -329,11 +324,13 @@ async function main() {
 
     //Adds a country into the list of allowed countries
     app.post("/country", async function (req, res) {
-        let countryInput = req.body.country;
-
         try {
+            let countryInput = req.body.country;
             if (await country.checkCountryRepeat(countryInput)) {
                 throw "Country is already in the database.";
+            }
+            if (!countryInput) {
+                throw "No empty strings please...";
             }
             await getDB().collection(COUNTRY).insertOne({ name: countryInput });
 
@@ -348,12 +345,36 @@ async function main() {
             });
         }
     });
-    //blacklist a country from the database
-    app.delete("/country", async function (req, res) {
-        let countryInput = req.body.country;
-
+    //Adds a country into the list of allowed countries
+    app.put("/country/:name", async function (req, res) {
         try {
-            await getDB().collection(COUNTRY).deleteOne({ name: countryInput });
+            let countryInput = req.body.country;
+            if (await country.checkCountryRepeat(countryInput)) {
+                throw "Country is already in the database.";
+            }
+            if (!countryInput) {
+                throw "No empty strings please...";
+            }
+
+            await getDB()
+                .collection(COUNTRY)
+                .updateOne({ name: req.params.name }, { $set: { name: countryInput } });
+
+            res.status(200);
+            res.json({
+                message: "The country has been edited successfully",
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+    //blacklist a country from the database
+    app.delete("/country/:name", async function (req, res) {
+        try {
+            await getDB().collection(COUNTRY).deleteOne({ name: req.params.name });
 
             res.status(200);
             res.json({
@@ -378,6 +399,65 @@ async function main() {
         res.json({ countryArray });
     });
 
+    //Adds a position into the list of allowed positions
+    app.post("/position", async function (req, res) {
+        try {
+            let positionInput = req.body.position;
+            if (!positionInput) {
+                throw "No empty strings please...";
+            }
+            await getDB().collection(POSITION).insertOne({ name: positionInput });
+
+            res.status(200);
+            res.json({
+                message: "The position has been added successfully",
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+    //Adds a position into the list of allowed countries
+    app.put("/position/:name", async function (req, res) {
+        try {
+            let positionInput = req.body.position;
+            if (!positionInput) {
+                throw "No empty strings please...";
+            }
+
+            await getDB()
+                .collection(POSITION)
+                .updateOne({ name: req.params.name }, { $set: { name: positionInput } });
+
+            res.status(200);
+            res.json({
+                message: "The position has been edited successfully",
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
+    //blacklist a position from the database
+    app.delete("/position/:name", async function (req, res) {
+        try {
+            await getDB().collection(POSITION).deleteOne({ name: req.params.name });
+
+            res.status(200);
+            res.json({
+                message: "The position has been deleted successfully",
+            });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: e,
+            });
+        }
+    });
     //Return a list of positions in database, {positionArray:[position1, position2]}
     app.get("/position", async function (req, res) {
         let positionList = await getDB().collection(POSITION).find().sort({ name: 1 }).project({ _id: 0 }).toArray();
@@ -570,6 +650,34 @@ async function main() {
 
             res.status(200);
             res.json({ openMarkets: openMarketsArray });
+        } catch (e) {
+            res.status(500);
+            res.json({
+                message: "The market id supplied in the URL is invalid",
+            });
+        }
+    });
+
+    //Edit a particular market only
+    app.put("/open_markets/:id", async function (req, res) {
+        try {
+            await getDB()
+                .collection(OPEN_PREDICTION_MARKETS)
+                .updateOne(
+                    {
+                        _id: ObjectId(req.params.id),
+                    },
+                    {
+                        $set: {
+                            position: req.body.updatePosition,
+                            country: req.body.updateCountry,
+                            timestampExpiry: req.body.updateExpiry,
+                        },
+                    }
+                );
+
+            res.status(200);
+            res.json({ message: "The update is successful" });
         } catch (e) {
             res.status(500);
             res.json({
